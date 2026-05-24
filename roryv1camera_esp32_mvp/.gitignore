@@ -1,0 +1,10 @@
+src/esp32/wifi_config.py
+firmware/esp32/*.bin
+firmware/esp32/micropython_camera.bin
+firmware/esp32/drivers/CH341SER.EXE
+backend/last_frame.jpg
+captures/*.jpg
+!captures/.gitkeep
+__pycache__/
+*.pyc
+.DS_Store
