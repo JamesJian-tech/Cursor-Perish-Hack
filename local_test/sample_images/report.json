@@ -1,0 +1,67 @@
+{
+  "summary": {
+    "total": 8,
+    "cup_detected": 4,
+    "no_cup": 4,
+    "unknown": 0,
+    "failed": 0
+  },
+  "items": [
+    {
+      "image": "local_test/sample_images/20260206_170514.jpeg",
+      "parsed": "NO_CUP",
+      "confidence": "100",
+      "elapsed": "1.91s",
+      "raw": "RESULT: NO\nCONFIDENCE: 100\nREASON: The image contains jars of food, not drinking cups."
+    },
+    {
+      "image": "local_test/sample_images/20260206_170523.jpeg",
+      "parsed": "CUP_DETECTED",
+      "confidence": "98",
+      "elapsed": "2.00s",
+      "raw": "RESULT: YES\nCONFIDENCE: 98\nREASON: There is a patterned paper cup visible in the image."
+    },
+    {
+      "image": "local_test/sample_images/20260206_170532.jpeg",
+      "parsed": "NO_CUP",
+      "confidence": "99",
+      "elapsed": "1.80s",
+      "raw": "RESULT: NO\nCONFIDENCE: 99\nREASON: The image contains only canned goods, not any cups or drinking containers."
+    },
+    {
+      "image": "local_test/sample_images/20260308_165108.jpeg",
+      "parsed": "NO_CUP",
+      "confidence": "100",
+      "elapsed": "2.46s",
+      "raw": "RESULT: NO\nCONFIDENCE: 100\nREASON: The image shows a cleaning station and shelves of food products, but no cups are present."
+    },
+    {
+      "image": "local_test/sample_images/20260308_165125.jpeg",
+      "parsed": "NO_CUP",
+      "confidence": "100",
+      "elapsed": "3.04s",
+      "raw": "RESULT: NO\nCONFIDENCE: 100\nREASON: The image contains food products on shelves, but no drinking cups."
+    },
+    {
+      "image": "local_test/sample_images/20260524_125212.jpeg",
+      "parsed": "CUP_DETECTED",
+      "confidence": "99",
+      "elapsed": "1.26s",
+      "raw": "RESULT: YES\nCONFIDENCE: 99\nREASON: The image contains a physical white cup-shaped drinking container."
+    },
+    {
+      "image": "local_test/sample_images/20260524_125240.jpeg",
+      "parsed": "CUP_DETECTED",
+      "confidence": "100",
+      "elapsed": "2.20s",
+      "raw": "RESULT: YES\nCONFIDENCE: 100\nREASON: There is a white cup-shaped drinking container visible in the image."
+    },
+    {
+      "image": "local_test/sample_images/cup.jpeg",
+      "parsed": "CUP_DETECTED",
+      "confidence": "98",
+      "elapsed": "3.83s",
+      "raw": "RESULT: YES\nCONFIDENCE: 98\nREASON: There is a physical, cup-shaped drinking container on the shelf."
+    }
+  ]
+}

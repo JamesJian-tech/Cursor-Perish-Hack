@@ -1,0 +1,74 @@
+OLLAMA GEMMA CUP DETECTION REPORT
+========================================
+Total images : 8
+CUP_DETECTED : 4
+NO_CUP       : 4
+UNKNOWN      : 0
+FAILED       : 0
+
+DETAILS
+----------------------------------------
+Image      : local_test/sample_images/20260206_170514.jpeg
+Result     : NO_CUP
+Confidence : 100
+Elapsed    : 1.91s
+Raw        : RESULT: NO
+CONFIDENCE: 100
+REASON: The image contains jars of food, not drinking cups.
+----------------------------------------
+Image      : local_test/sample_images/20260206_170523.jpeg
+Result     : CUP_DETECTED
+Confidence : 98
+Elapsed    : 2.00s
+Raw        : RESULT: YES
+CONFIDENCE: 98
+REASON: There is a patterned paper cup visible in the image.
+----------------------------------------
+Image      : local_test/sample_images/20260206_170532.jpeg
+Result     : NO_CUP
+Confidence : 99
+Elapsed    : 1.80s
+Raw        : RESULT: NO
+CONFIDENCE: 99
+REASON: The image contains only canned goods, not any cups or drinking containers.
+----------------------------------------
+Image      : local_test/sample_images/20260308_165108.jpeg
+Result     : NO_CUP
+Confidence : 100
+Elapsed    : 2.46s
+Raw        : RESULT: NO
+CONFIDENCE: 100
+REASON: The image shows a cleaning station and shelves of food products, but no cups are present.
+----------------------------------------
+Image      : local_test/sample_images/20260308_165125.jpeg
+Result     : NO_CUP
+Confidence : 100
+Elapsed    : 3.04s
+Raw        : RESULT: NO
+CONFIDENCE: 100
+REASON: The image contains food products on shelves, but no drinking cups.
+----------------------------------------
+Image      : local_test/sample_images/20260524_125212.jpeg
+Result     : CUP_DETECTED
+Confidence : 99
+Elapsed    : 1.26s
+Raw        : RESULT: YES
+CONFIDENCE: 99
+REASON: The image contains a physical white cup-shaped drinking container.
+----------------------------------------
+Image      : local_test/sample_images/20260524_125240.jpeg
+Result     : CUP_DETECTED
+Confidence : 100
+Elapsed    : 2.20s
+Raw        : RESULT: YES
+CONFIDENCE: 100
+REASON: There is a white cup-shaped drinking container visible in the image.
+----------------------------------------
+Image      : local_test/sample_images/cup.jpeg
+Result     : CUP_DETECTED
+Confidence : 98
+Elapsed    : 3.83s
+Raw        : RESULT: YES
+CONFIDENCE: 98
+REASON: There is a physical, cup-shaped drinking container on the shelf.
+----------------------------------------
