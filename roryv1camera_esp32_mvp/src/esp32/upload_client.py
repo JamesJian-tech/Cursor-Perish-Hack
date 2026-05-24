@@ -71,10 +71,7 @@ def _post_jpeg_once(url, jpeg_bytes, timeout):
         if len(parts) >= 2:
             return int(parts[1])
         return None
-    except OSError as e:
-        print("upload error:", e)
-        return None
-    except ValueError as e:
+    except (OSError, ValueError) as e:
         print("upload error:", e)
         return None
     finally:

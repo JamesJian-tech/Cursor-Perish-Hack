@@ -7,6 +7,26 @@ import gc
 # Rough minimum for a valid VGA JPEG from this sensor (well below typical ~15–25 KB)
 MIN_JPEG_BYTES = 1000
 JPEG_MAGIC = b"\xff\xd8\xff"
+DEFAULT_FRAMESIZE = camera.FRAME_VGA
+
+CAMERA_PINS = {
+    "d0": 4,
+    "d1": 5,
+    "d2": 18,
+    "d3": 19,
+    "d4": 36,
+    "d5": 39,
+    "d6": 34,
+    "d7": 35,
+    "href": 23,
+    "vsync": 25,
+    "reset": -1,
+    "pwdn": -1,
+    "sioc": 27,
+    "siod": 26,
+    "xclk": 21,
+    "pclk": 22,
+}
 
 
 def deinit_camera():
@@ -19,29 +39,29 @@ def deinit_camera():
 def init_camera(framesize=None):
     deinit_camera()
     if framesize is None:
-        framesize = camera.FRAME_VGA
+        framesize = DEFAULT_FRAMESIZE
 
     camera.init(
         0,
-        d0=4,
-        d1=5,
-        d2=18,
-        d3=19,
-        d4=36,
-        d5=39,
-        d6=34,
-        d7=35,
+        d0=CAMERA_PINS["d0"],
+        d1=CAMERA_PINS["d1"],
+        d2=CAMERA_PINS["d2"],
+        d3=CAMERA_PINS["d3"],
+        d4=CAMERA_PINS["d4"],
+        d5=CAMERA_PINS["d5"],
+        d6=CAMERA_PINS["d6"],
+        d7=CAMERA_PINS["d7"],
         format=camera.JPEG,
         framesize=framesize,
         xclk_freq=camera.XCLK_20MHz,
-        href=23,
-        vsync=25,
-        reset=-1,
-        pwdn=-1,
-        sioc=27,
-        siod=26,
-        xclk=21,
-        pclk=22,
+        href=CAMERA_PINS["href"],
+        vsync=CAMERA_PINS["vsync"],
+        reset=CAMERA_PINS["reset"],
+        pwdn=CAMERA_PINS["pwdn"],
+        sioc=CAMERA_PINS["sioc"],
+        siod=CAMERA_PINS["siod"],
+        xclk=CAMERA_PINS["xclk"],
+        pclk=CAMERA_PINS["pclk"],
         fb_location=camera.PSRAM,
     )
 

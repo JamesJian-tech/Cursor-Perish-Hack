@@ -1,7 +1,7 @@
 # AP mode preview server.
 # ESP32 creates hotspot and serves:
 #   GET /            -> simple preview page
-#   GET /snapshot.jpg -> single JPEG capture
+#   GET /snapshot    -> single JPEG capture
 #   GET /health      -> status JSON
 # pylint: disable=import-error,no-member,broad-exception-caught
 import gc
@@ -10,7 +10,13 @@ import sys
 import time
 
 import camera_freenove as cam
-from ap_config import AP_CHANNEL, AP_PASSWORD, AP_SSID
+
+try:
+    from ap_config import AP_CHANNEL, AP_PASSWORD, AP_SSID
+except ImportError:
+    AP_SSID = "NomSpot-Cam"
+    AP_PASSWORD = "12345678"
+    AP_CHANNEL = 6
 
 
 def _start_ap():
@@ -54,6 +60,15 @@ def _resp(sock, status, content_type, body):
     sock.send(body)
 
 
+def _request_path(req):
+    line = req.split(b"\r\n", 1)[0]
+    parts = line.split(b" ")
+    if len(parts) < 2:
+        return "/"
+    raw_path = parts[1].decode("utf-8", "ignore")
+    return raw_path.split("?", 1)[0]
+
+
 def _page_html(ip):
     return (
         "<!doctype html><html><head><meta charset='utf-8'>"
@@ -67,10 +82,10 @@ def _page_html(ip):
         "<h2>NomSpot ESP32 Camera (AP Mode)</h2>"
         "<p>Connect WiFi: <code>%s</code> "
         "then open <code>http://%s/</code></p>"
-        "<img id='frame' src='/snapshot.jpg?t=0' alt='snapshot'>"
+        "<img id='frame' src='/snapshot?t=0' alt='snapshot'>"
         "<script>"
         "setInterval(function(){"
-        "document.getElementById('frame').src='/snapshot.jpg?t='+Date.now();"
+        "document.getElementById('frame').src='/snapshot?t='+Date.now();"
         "}, 2000);"
         "</script></body></html>"
     ) % (AP_SSID, ip)
@@ -99,24 +114,29 @@ def run():
             try:
                 client.settimeout(5)
                 req = client.recv(512)
-                line = req.split(b"\r\n", 1)[0]
-                parts = line.split(b" ")
-                path = b"/"
-                if len(parts) >= 2:
-                    path = parts[1]
+                path = _request_path(req)
 
                 ip = "192.168.4.1"
-                if path == b"/" or path.startswith(b"/?"):
+                if path == "/":
                     body = _page_html(ip).encode()
                     _resp(client, "200 OK", "text/html; charset=utf-8", body)
-                elif path.startswith(b"/health"):
+                elif path == "/health":
                     body = b'{"status":"ok","mode":"ap"}'
                     _resp(client, "200 OK", "application/json", body)
-                elif path.startswith(b"/snapshot.jpg"):
-                    jpeg = cam.capture_jpeg()
-                    _resp(client, "200 OK", "image/jpeg", jpeg)
-                    del jpeg
-                    gc.collect()
+                elif path == "/snapshot":
+                    try:
+                        jpeg = cam.capture_jpeg()
+                        _resp(client, "200 OK", "image/jpeg", jpeg)
+                        del jpeg
+                        gc.collect()
+                    except Exception as e:
+                        sys.print_exception(e)
+                        _resp(
+                            client,
+                            "500 Internal Server Error",
+                            "text/plain",
+                            b"snapshot failed",
+                        )
                 else:
                     _resp(client, "404 Not Found", "text/plain", b"not found")
             except Exception as e:
