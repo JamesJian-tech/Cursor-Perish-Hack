@@ -122,6 +122,28 @@ Use the **model laptop IP** when prompted for `BACKEND_URL`.
 
 **Verify:** `backend\last_frame.jpg` on the model laptop updates every ~2 s; serial shows `POST status: 200`.
 
+### Optional AP mode — ESP32 creates its own WiFi + preview page
+
+Use this when you want to connect directly to ESP32 without home router/laptop backend.
+
+```powershell
+cd firmware\esp32
+.\prepare_ap_config.ps1
+.\upload_ap.ps1 -Port COM4
+```
+
+Then connect your phone/laptop WiFi to the ESP32 SSID (default `NomSpot-Cam`) and open:
+
+```text
+http://192.168.4.1/
+```
+
+You can also fetch single frame:
+
+```text
+http://192.168.4.1/snapshot.jpg
+```
+
 More detail: [MVP.md](MVP.md) · [SETUP.md](SETUP.md) · [PHASE1.md](PHASE1.md)
 
 ---

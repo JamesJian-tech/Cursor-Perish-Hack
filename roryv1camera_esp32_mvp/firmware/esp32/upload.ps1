@@ -11,7 +11,7 @@ param(
 $root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $src = Join-Path $root "src\esp32"
 
-foreach ($file in @("upload_client.py", "main_upload.py")) {
+foreach ($file in @("upload_client.py", "main_upload.py", "main_ap.py")) {
     $path = Join-Path $src $file
     Write-Host "Uploading $file ..."
     python -m mpremote connect $Port fs cp $path ":$file"

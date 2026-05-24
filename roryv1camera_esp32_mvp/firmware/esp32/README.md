@@ -143,3 +143,18 @@ POST status: 200 JPEG bytes: ...
 ```
 
 Check `backend/last_frame.jpg` on the laptop.
+
+## AP mode preview (ESP32 hotspot)
+
+No router or backend required.
+
+```powershell
+.\prepare_ap_config.ps1
+.\upload_ap.ps1 -Port COM4
+```
+
+Connect to ESP32 SSID (default `NomSpot-Cam`) and open:
+
+```text
+http://192.168.4.1/
+```

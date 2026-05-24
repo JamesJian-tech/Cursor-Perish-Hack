@@ -12,6 +12,7 @@ import re
 import sys
 import time
 from typing import Dict, List, Optional
+from urllib.parse import urlparse, urlunparse
 
 import requests
 
@@ -19,6 +20,16 @@ import requests
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "gemma4:e2b"
 TIMEOUT_SECONDS = 30
+IMAGE_FETCH_RETRIES = 3
+MAX_STREAM_SCAN_BYTES = 2_000_000
+IMAGE_FETCH_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "image/*,*/*;q=0.8",
+}
 STRICT_PROMPT = """You are a visual object detector.
 
 Check whether the image contains a real physical cup.
@@ -54,6 +65,10 @@ def color(text: str, code: str) -> str:
     return f"\033[{code}m{text}\033[0m"
 
 
+def is_http_source(value: str) -> bool:
+    return value.startswith("http://") or value.startswith("https://")
+
+
 def classify_response(raw_response: str) -> str:
     match = re.search(
         r"RESULT:\s*(YES|NO)\b",
@@ -76,17 +91,114 @@ def extract_confidence(raw_response: str) -> str:
     return match.group(1)
 
 
-def image_to_base64(image_path: str) -> str:
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
+def image_bytes_to_base64(image_bytes: bytes) -> str:
+    return base64.b64encode(image_bytes).decode("utf-8")
 
 
-def detect_image(image_path: str) -> Dict[str, str]:
+def build_url_candidates(source: str) -> List[str]:
+    parsed = urlparse(source)
+    base = urlunparse((parsed.scheme, parsed.netloc, "", "", "", ""))
+    path = parsed.path or "/"
+
+    candidates = [source]
+    if path in ("/", "/stream"):
+        candidates.extend(
+            [
+                f"{base}/snapshot",
+                f"{base}/snapshot.jpg",
+                f"{base}/api/frame/latest",
+            ]
+        )
+
+    deduped = list(dict.fromkeys(candidates))
+    return deduped
+
+
+def extract_first_jpeg_from_stream(response: requests.Response) -> bytes:
+    buffer = b""
+    scanned = 0
+    for chunk in response.iter_content(chunk_size=8192):
+        if not chunk:
+            continue
+        buffer += chunk
+        scanned += len(chunk)
+        if scanned > MAX_STREAM_SCAN_BYTES:
+            raise RuntimeError("Stream did not provide JPEG frame in time.")
+
+        start = buffer.find(b"\xff\xd8")
+        if start == -1:
+            continue
+        end = buffer.find(b"\xff\xd9", start + 2)
+        if end == -1:
+            continue
+        return buffer[start : end + 2]
+
+    raise RuntimeError("Unable to extract JPEG frame from stream.")
+
+
+def load_image_bytes(source: str) -> bytes:
+    if is_http_source(source):
+        session = requests.Session()
+        session.trust_env = False
+        last_error: Exception | None = None
+
+        for candidate_url in build_url_candidates(source):
+            for attempt in range(IMAGE_FETCH_RETRIES):
+                try:
+                    response = session.get(
+                        candidate_url,
+                        timeout=TIMEOUT_SECONDS,
+                        headers=IMAGE_FETCH_HEADERS,
+                        allow_redirects=True,
+                        stream=True,
+                    )
+                    if response.status_code >= 400:
+                        raise RuntimeError(
+                            "Image URL error HTTP "
+                            f"{response.status_code}: {candidate_url}"
+                        )
+
+                    content_type = response.headers.get("Content-Type", "").lower()
+                    if "multipart/" in content_type or "/stream" in candidate_url:
+                        image_bytes = extract_first_jpeg_from_stream(response)
+                    else:
+                        image_bytes = response.content
+
+                    if not image_bytes:
+                        raise RuntimeError("Image URL returned empty body.")
+                    return image_bytes
+                except (
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout,
+                    requests.exceptions.RequestException,
+                    RuntimeError,
+                ) as exc:
+                    last_error = exc
+                    if attempt + 1 < IMAGE_FETCH_RETRIES:
+                        continue
+
+        if isinstance(last_error, RuntimeError):
+            raise last_error
+        if isinstance(last_error, requests.exceptions.Timeout):
+            raise RuntimeError(
+                f"Image URL request timed out after {TIMEOUT_SECONDS} seconds."
+            ) from last_error
+        raise RuntimeError(f"Cannot connect to image URL: {source}") from last_error
+
+    try:
+        with open(source, "rb") as image_file:
+            return image_file.read()
+    except OSError as exc:
+        raise RuntimeError(f"Failed to read image file: {exc}") from exc
+
+
+def detect_image(source: str) -> Dict[str, str]:
     start = time.time()
+    image_bytes = load_image_bytes(source)
     payload = {
         "model": MODEL_NAME,
         "prompt": STRICT_PROMPT,
-        "images": [image_to_base64(image_path)],
+        "images": [image_bytes_to_base64(image_bytes)],
         "stream": False,
     }
     response = requests.post(OLLAMA_URL, json=payload, timeout=TIMEOUT_SECONDS)
@@ -109,6 +221,7 @@ def detect_image(image_path: str) -> Dict[str, str]:
 
     elapsed = f"{(time.time() - start):.2f}s"
     return {
+        "source": source,
         "raw": raw,
         "parsed": classify_response(raw),
         "confidence": extract_confidence(raw),
@@ -205,15 +318,19 @@ def write_reports(
         print(f"Saved TXT report: {txt_path}")
 
 
-def resolve_image_paths(targets: List[str], recursive: bool) -> List[str]:
-    image_paths: List[str] = []
+def resolve_image_sources(targets: List[str], recursive: bool) -> List[str]:
+    image_sources: List[str] = []
 
     for target in targets:
+        if is_http_source(target):
+            image_sources.append(target)
+            continue
+
         path = Path(target)
 
         if path.is_file():
             if path.suffix.lower() in IMAGE_EXTENSIONS:
-                image_paths.append(str(path))
+                image_sources.append(str(path))
             continue
 
         if path.is_dir():
@@ -221,10 +338,10 @@ def resolve_image_paths(targets: List[str], recursive: bool) -> List[str]:
             for candidate in sorted(path.glob(pattern)):
                 if candidate.is_file():
                     if candidate.suffix.lower() in IMAGE_EXTENSIONS:
-                        image_paths.append(str(candidate))
+                        image_sources.append(str(candidate))
 
     # Keep order stable while removing duplicates.
-    deduped = list(dict.fromkeys(image_paths))
+    deduped = list(dict.fromkeys(image_sources))
     return deduped
 
 
@@ -234,8 +351,8 @@ def main() -> int:
     )
     parser.add_argument(
         "targets",
-        nargs="+",
-        help="Image files and/or folders containing images",
+        nargs="*",
+        help="Image files/folders and/or image URLs",
     )
     parser.add_argument(
         "--recursive",
@@ -250,39 +367,79 @@ def main() -> int:
         "--save-txt",
         help="Save report to TXT file (example: local_test/report.txt)",
     )
+    parser.add_argument(
+        "--live-url",
+        help="Poll this image URL repeatedly (example: /api/frame/latest)",
+    )
+    parser.add_argument(
+        "--live-interval",
+        type=float,
+        default=2.0,
+        help="Seconds between live polls (default: 2.0)",
+    )
+    parser.add_argument(
+        "--live-count",
+        type=int,
+        default=10,
+        help="How many live frames to test (default: 10)",
+    )
     args = parser.parse_args()
 
-    missing = [path for path in args.targets if not os.path.exists(path)]
+    if args.live_url:
+        if args.live_count <= 0:
+            print(color("Error: --live-count must be > 0", "31"))
+            return 1
+        if args.live_interval <= 0:
+            print(color("Error: --live-interval must be > 0", "31"))
+            return 1
+
+        args.targets.extend(
+            [f"{args.live_url}#frame-{idx + 1}" for idx in range(args.live_count)]
+        )
+
+    if not args.targets:
+        print(color("Error: Provide at least one source or --live-url.", "31"))
+        return 1
+
+    missing = [
+        path
+        for path in args.targets
+        if (not is_http_source(path)) and (not os.path.exists(path))
+    ]
     if missing:
         for path in missing:
             print(color(f"Error: File does not exist: {path}", "31"))
         return 1
 
-    image_paths = resolve_image_paths(args.targets, recursive=args.recursive)
-    if not image_paths:
+    image_sources = resolve_image_sources(args.targets, recursive=args.recursive)
+    if not image_sources:
         print(color("Error: No image files found in the given paths.", "31"))
-        print("Supported extensions: .jpg .jpeg .png .webp .bmp")
+        print("Supported local extensions: .jpg .jpeg .png .webp .bmp")
+        print("Or pass image URL(s).")
         return 1
 
-    print_header(total=len(image_paths))
+    print_header(total=len(image_sources))
     parsed_results: List[str] = []
     failures = 0
     report_items: List[Dict[str, str]] = []
 
-    for idx, image_path in enumerate(image_paths, start=1):
+    for idx, source in enumerate(image_sources, start=1):
+        source_for_fetch = source.split("#frame-", 1)[0]
         try:
-            result = detect_image(image_path)
+            result = detect_image(source_for_fetch)
             parsed_results.append(result["parsed"])
             report_items.append(
                 {
-                    "image": image_path,
+                    "image": source,
                     "parsed": result["parsed"],
                     "confidence": result["confidence"],
                     "elapsed": result["elapsed"],
                     "raw": result["raw"],
                 }
             )
-            print_result(idx, len(image_paths), image_path, result)
+            print_result(idx, len(image_sources), source, result)
+            if args.live_url and idx < len(image_sources):
+                time.sleep(args.live_interval)
         except requests.exceptions.ConnectionError:
             print(
                 color(
@@ -294,7 +451,7 @@ def main() -> int:
             failures += 1
             report_items.append(
                 {
-                    "image": image_path,
+                    "image": source,
                     "parsed": "FAILED",
                     "confidence": "N/A",
                     "elapsed": "N/A",
@@ -311,7 +468,7 @@ def main() -> int:
             failures += 1
             report_items.append(
                 {
-                    "image": image_path,
+                    "image": source,
                     "parsed": "FAILED",
                     "confidence": "N/A",
                     "elapsed": "N/A",
@@ -323,7 +480,7 @@ def main() -> int:
             failures += 1
             report_items.append(
                 {
-                    "image": image_path,
+                    "image": source,
                     "parsed": "FAILED",
                     "confidence": "N/A",
                     "elapsed": "N/A",
@@ -335,7 +492,7 @@ def main() -> int:
             failures += 1
             report_items.append(
                 {
-                    "image": image_path,
+                    "image": source,
                     "parsed": "FAILED",
                     "confidence": "N/A",
                     "elapsed": "N/A",
@@ -347,7 +504,7 @@ def main() -> int:
             failures += 1
             report_items.append(
                 {
-                    "image": image_path,
+                    "image": source,
                     "parsed": "FAILED",
                     "confidence": "N/A",
                     "elapsed": "N/A",
@@ -357,7 +514,7 @@ def main() -> int:
 
     print_summary(parsed_results, failures)
     summary = {
-        "total": len(image_paths),
+        "total": len(image_sources),
         "cup_detected": sum(1 for item in parsed_results if item == "CUP_DETECTED"),
         "no_cup": sum(1 for item in parsed_results if item == "NO_CUP"),
         "unknown": sum(1 for item in parsed_results if item == "UNKNOWN"),

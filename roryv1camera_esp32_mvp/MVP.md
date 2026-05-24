@@ -69,6 +69,20 @@ Serial debug (optional): `python -m mpremote connect COM4`
 
 ---
 
+## Optional: ESP32 AP preview (no router/backend)
+
+If you only want direct preview from ESP32:
+
+```powershell
+cd firmware\esp32
+.\prepare_ap_config.ps1
+.\upload_ap.ps1 -Port COM4
+```
+
+Then connect laptop/phone to ESP32 WiFi and open `http://192.168.4.1/`.
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
